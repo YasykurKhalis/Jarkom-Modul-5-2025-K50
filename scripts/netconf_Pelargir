@@ -1,0 +1,24 @@
+auto lo
+iface lo inet loopback
+
+# Ke Minastir (Uplink)
+auto eth0
+iface eth0 inet static
+	address 192.236.1.214
+	netmask 255.255.255.252
+	# Default Gateway ke Minastir
+	up ip route add default via 192.236.1.213
+
+# Ke AnduinBanks (Downlink)
+auto eth1
+iface eth1 inet static
+	address 192.236.1.217
+	netmask 255.255.255.252
+	# Rute ke Subnet B (Gilgalad) via AnduinBanks
+	up ip route add 192.236.1.0/25 via 192.236.1.218
+
+# Gateway Palantir (Subnet F)
+auto eth2
+iface eth2 inet static
+	address 192.236.1.205
+	netmask 255.255.255.252

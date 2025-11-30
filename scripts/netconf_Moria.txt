@@ -1,0 +1,24 @@
+auto lo
+iface lo inet loopback
+
+# Ke Osgiliath (Uplink)
+auto eth0
+iface eth0 inet static
+	address 192.236.1.222
+	netmask 255.255.255.252
+	# Default Gateway ke Osgiliath
+	up ip route add default via 192.236.1.221
+
+# Gateway IronHills (Subnet E)
+auto eth1
+iface eth1 inet static
+	address 192.236.1.201
+	netmask 255.255.255.252
+
+# Ke Wilderland (Downlink)
+auto eth2
+iface eth2 inet static
+	address 192.236.1.225
+	netmask 255.255.255.252
+	# Rute ke Subnet C (Durin) via Wilderland
+	up ip route add 192.236.1.128/26 via 192.236.1.226
