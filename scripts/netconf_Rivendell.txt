@@ -1,0 +1,16 @@
+auto lo
+iface lo inet loopback
+
+# Ke Osgiliath (Uplink)
+auto eth0
+iface eth0 inet static
+	address 192.236.1.230
+	netmask 255.255.255.252
+	# Default Gateway ke Osgiliath
+	up ip route add default via 192.236.1.229
+
+# Gateway Server Vilya/Narya (Subnet D)
+auto eth1
+iface eth1 inet static
+	address 192.236.1.193
+	netmask 255.255.255.248

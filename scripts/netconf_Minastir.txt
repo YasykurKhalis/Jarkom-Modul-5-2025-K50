@@ -1,0 +1,28 @@
+auto lo
+iface lo inet loopback
+
+# Ke Osgiliath (Uplink)
+auto eth0
+iface eth0 inet static
+	address 192.236.1.210
+	netmask 255.255.255.252
+	# Default Gateway ke Osgiliath
+	up ip route add default via 192.236.1.209
+
+# Gateway Client Elendil/Isildur (Subnet A)
+auto eth1
+iface eth1 inet static
+	address 192.236.0.1
+	netmask 255.255.255.0
+
+# Ke Pelargir (Downlink)
+auto eth2
+iface eth2 inet static
+	address 192.236.1.213
+	netmask 255.255.255.252
+	# Rute ke Subnet B (Gilgalad) via Pelargir
+	up ip route add 192.236.1.0/25 via 192.236.1.214
+	# Rute ke Subnet F (Palantir) via Pelargir
+	up ip route add 192.236.1.204/30 via 192.236.1.214
+	# Rute ke Network Link Pelargir-AnduinBanks 
+	up ip route add 192.236.1.216/30 via 192.236.1.214
