@@ -14,6 +14,8 @@ auto eth1
 iface eth1 inet static
 	address 192.236.0.1
 	netmask 255.255.255.0
+	# Rute ke Subnet C (Durin/Khamul) via Osgiliath->Moria->Wilderland
+	up ip route add 192.236.1.128/26 via 192.236.1.209
 
 # Ke Pelargir (Downlink)
 auto eth2

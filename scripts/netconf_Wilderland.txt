@@ -8,8 +8,14 @@ iface eth0 inet static
 	netmask 255.255.255.252
 	gateway 192.236.1.225
 
-# eth1: Ke SWITCH3 (Downlink/Bawah)
+# eth1: Ke DURIN (Direct connection - Client Subnet C)
 auto eth1
 iface eth1 inet static
+	address 192.236.1.129
+	netmask 255.255.255.192
+
+# eth2: Ke SWITCH3 (Khamul via Switch3 - juga Subnet C)
+auto eth2
+iface eth2 inet static
 	address 192.236.1.129
 	netmask 255.255.255.192

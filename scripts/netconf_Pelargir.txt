@@ -22,3 +22,5 @@ auto eth2
 iface eth2 inet static
 	address 192.236.1.205
 	netmask 255.255.255.252
+	# Rute ke Subnet C (Durin/Khamul) via Minastir->Osgiliath->Moria->Wilderland
+	up ip route add 192.236.1.128/26 via 192.236.1.213

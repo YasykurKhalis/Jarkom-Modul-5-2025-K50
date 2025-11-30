@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Verifikasi Misi 2.3 dari Sisi VILYA
+# Verifikasi Misi 2.3 dari Sisi Client
 # Tujuan: Install Netcat & Tes Akses ke Narya
 # ==========================================
 

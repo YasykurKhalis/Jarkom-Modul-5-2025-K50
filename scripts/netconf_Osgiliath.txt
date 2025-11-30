@@ -22,8 +22,8 @@ iface eth2 inet static
 	up ip route add 192.236.1.128/26 via 192.236.1.222
 	# Rute ke Subnet E (IronHills) via Moria
 	up ip route add 192.236.1.200/30 via 192.236.1.222
-        # Rute ke Network Link Moria-Wilderland
-        up ip route add 192.236.1.224/30 via 192.236.1.222
+    # Rute ke Network Link Moria-Wilderland
+    up ip route add 192.236.1.224/30 via 192.236.1.222
 
 # Ke Minastir (Kanan)
 auto eth3
