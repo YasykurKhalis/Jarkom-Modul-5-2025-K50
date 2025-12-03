@@ -276,15 +276,311 @@ auto eth0
 iface eth0 inet dhcp
 ```     
 #### Misi 1-4:
-Setelah selesai melakukan config, bisa melakukan konfigurasi service (**NOTE: Run Solver Misi 2-1 terlebih dahulu di Osgiliath untuk mendapatkan internet**):    
+Setelah selesai melakukan config, bisa melakukan instalasi dan konfigurasi service (**NOTE: Run Solver Misi 2-1 terlebih dahulu di Osgiliath untuk mendapatkan internet**):
+
+WebServer (IronHills, Palantir):
+```bash
+#!/bin/bash
+
+# 1. Set DNS ke Google dulu biar bisa apt update
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+# 2. Update repo dan install Nginx
+apt-get update
+apt-get install nginx -y
+
+echo "Starting Nginx manually..."
+if [ -f /etc/init.d/nginx ]; then
+    /etc/init.d/nginx start
+else
+    # Fallback kalau init script ga ada/gagal
+    /usr/sbin/nginx
+fi
+
+# Pastikan service status running
+service nginx status || echo "Nginx status check skipped (container limitation)"
+
+# 4. Soal Misi 1: Buat index.html berisikan "Welcome to {hostname}"
+echo "Welcome to $(hostname)" > /var/www/html/index.html
+
+# 5. Cek hasil
+echo "----------------------------------------"
+echo "Cek akses Localhost:"
+curl localhost
+echo "----------------------------------------"
+echo "Instalasi Web Server di $(hostname) Selesai."
+```
+
+DHCP Relay (Minastir, AnduinBanks, Rivendell, Wilderland):
+```bash
+#!/bin/bash
+
+# IP DHCP SERVER (VILYA)
+TARGET_SERVER="192.236.1.194"
+
+echo "Mengonfigurasi DHCP Relay arah ke $TARGET_SERVER..."
+
+# 1. Pastikan DNS aman buat install
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+apt-get update
+
+# 2. Install Paket (Mode Non-Interactive)
+DEBIAN_FRONTEND=noninteractive apt-get install isc-dhcp-relay -y
+
+# 3. Masukkan Konfigurasi Relay
+cat > /etc/default/isc-dhcp-relay <<EOF
+SERVERS="$TARGET_SERVER"
+INTERFACES="eth0 eth1 eth2 eth3"
+OPTIONS=""
+EOF
+
+# 4. Aktifkan IP Forwarding (Wajib bagi Relay/Router)
+# Cek apakah sudah ada, kalau belum tambahkan
+if ! grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf; then
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+else
+    sed -i '/net.ipv4.ip_forward=1/s/^#//g' /etc/sysctl.conf
+fi
+sysctl -p
+
+# 5. Restart Service
+service isc-dhcp-relay restart
+
+# 6. Verifikasi
+echo "----------------------------------------"
+if service isc-dhcp-relay status | grep -q "Active: active"; then
+    echo "[SUKSES] Relay aktif! Siap meneruskan request ke Vilya."
+else
+    echo "[WARNING] Service belum aktif. Coba jalankan 'service isc-dhcp-relay start' manual."
+fi
+```
+
+DHCP Server (Vilya):
+```bash
+#!/bin/bash
+
+echo nameserver 8.8.8.8 > /etc/resolv.conf
+
+apt-get update
+apt-get install isc-dhcp-server -y
+
+# 1. Pastikan interface diset
+sed -i 's/INTERFACESv4=""/INTERFACESv4="eth0"/g' /etc/default/isc-dhcp-server
+
+# 2. Tulis konfigurasi dhcpd.conf
+cat > /etc/dhcp/dhcpd.conf <<EOF
+# Global Config
+default-lease-time 600;
+max-lease-time 7200;
+option domain-name "k50.com";
+option domain-name-servers 192.236.1.195, 8.8.8.8; # IP Narya & Google
+
+# Subnet D (Jaringan Lokal Vilya - Wajib ada)
+subnet 192.236.1.192 netmask 255.255.255.248 {
+}
+
+# Subnet A (Switch4 - Elendil/Isildur)
+subnet 192.236.0.0 netmask 255.255.255.0 {
+    range 192.236.0.10 192.236.0.250;
+    option routers 192.236.0.1;
+    option broadcast-address 192.236.0.255;
+}
+
+# Subnet B (Switch5 - Gilgalad/Cirdan)
+subnet 192.236.1.0 netmask 255.255.255.128 {
+    range 192.236.1.10 192.236.1.120;
+    option routers 192.236.1.1;
+    option broadcast-address 192.236.1.127;
+}
+
+# Subnet C (Switch3 - Durin/Khamul)
+subnet 192.236.1.128 netmask 255.255.255.192 {
+    range 192.236.1.130 192.236.1.190;
+    option routers 192.236.1.129;
+    option broadcast-address 192.236.1.191;
+}
+EOF
+
+# 3. Restart Service
+service isc-dhcp-server restart
+service isc-dhcp-server status | grep "Active"
+echo "DHCP Server Configured!"
+```
+
+DNS Server (Narya):
+```bash
+#!/bin/bash
+
+echo nameserver 8.8.8.8 > /etc/resolv.conf
+
+apt-get update
+apt-get install bind9 dnsutils -y
+# 1. Konfigurasi Options (Forwarder ke Google)
+cat > /etc/bind/named.conf.options <<EOF
+options {
+        directory "/var/cache/bind";
+        forwarders {
+                8.8.8.8;
+        };
+        dnssec-validation auto;
+        listen-on-v6 { any; };
+        allow-query { any; };
+};
+EOF
+
+# 2. Konfigurasi Zone (Local)
+cat > /etc/bind/named.conf.local <<EOF
+zone "k50.com" {
+        type master;
+        file "/etc/bind/jarkom/k50.com";
+};
+
+zone "1.236.192.in-addr.arpa" {
+        type master;
+        file "/etc/bind/jarkom/1.236.192.in-addr.arpa";
+};
+EOF
+
+# 3. Buat Folder & File Zone Forward
+mkdir -p /etc/bind/jarkom
+
+cat > /etc/bind/jarkom/k50.com <<EOF
+;
+; Forward Zone - k50.com
+;
+\$TTL    604800
+@       IN      SOA     k50.com. root.k50.com. (
+                        2023101001      ; Serial
+                        604800          ; Refresh
+                        86400           ; Retry
+                        2419200         ; Expire
+                        604800 )        ; Negative Cache TTL
+;
+@       IN      NS      narya.k50.com.
+@       IN      A       192.236.1.195   ; IP Narya
+narya   IN      A       192.236.1.195
+vilya   IN      A       192.236.1.194
+ironhills IN    A       192.236.1.202
+palantir  IN    A       192.236.1.206
+www       IN    CNAME   ironhills       ; Alias www ke IronHills
+EOF
+
+# 4. Buat File Zone Reverse
+cat > /etc/bind/jarkom/1.236.192.in-addr.arpa <<EOF
+;
+; Reverse Zone (Subnet Server 192.236.1.x)
+;
+\$TTL    604800
+@       IN      SOA     k50.com. root.k50.com. (
+                        2023101001      ; Serial
+                        604800          ; Refresh
+                        86400           ; Retry
+                        2419200         ; Expire
+                        604800 )        ; Negative Cache TTL
+;
+@       IN      NS      narya.k50.com.
+195     IN      PTR     narya.k50.com.
+194     IN      PTR     vilya.k50.com.
+202     IN      PTR     ironhills.k50.com.
+206     IN      PTR     palantir.k50.com.
+EOF
+
+# 5. Restart Service (Paksa start binary manual jika service gagal)
+if [ -f /usr/sbin/named ]; then
+    /usr/sbin/named -u bind
+fi
+service bind9 restart
+echo "DNS Server Narya (k50.com) Siap!"
+```
+
+Coba jalankan WebServer:
+
+![web-ironhills](/assets/web-ironhills.png)
+
+![web-palantir](/assets/web-palantir.png)
 
 ### Misi 2:   
 #### Misi 2-1:    
-sdfgh
+Menghubungkan jaringan Aliansi ke internet melalui router Osgiliath tanpa menggunakan target `MASQUERADE`:
+```bash
+iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source <IP_ETH0_OSGILIATH>
+```
+
+![ke-internet](/assets/osgiliath-ke-internet.PNG)
+
 #### Misi 2-2:   
-dsfgn
+Mengamankan Vilya agar tidak bisa di-ping oleh perangkat lain, namun Vilya tetap bisa melakukan ping ke luar.
+
+Tolak ICMP Echo Request (Ping) yang masuk ke Vilya:
+```bash
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+```
+
+Tes ping di node lain:
+
+![elendil-ke-vilya-setelah-config](/assets/elendil-ke-vilya-setelah-config.PNG)
+
 #### Misi 2-3:    
-fsdfsd
+Memastikan hanya Vilya yang dapat mengakses layanan DNS (Port 53) pada server Narya. Akses dari node lain harus ditolak.
+
+Konfigurasi di Narya untuk hanya mengizinkan Vilya:
+```bash
+#!/bin/bash
+IP_VILYA="192.236.1.194"
+
+echo "Menghapus aturan-aturan Iptables untuk isolasi DNS..."
+# --- 1. Hapus aturan DROP akses DNS (TCP/UDP) dari IP lain ---
+iptables -D INPUT -p udp --dport 53 -j DROP
+iptables -D INPUT -p tcp --dport 53 -j DROP
+
+# --- 2. Hapus aturan ALLOW akses DNS (TCP/UDP) dari Vilya ---
+iptables -D INPUT -p udp --dport 53 -s $IP_VILYA -j ACCEPT
+iptables -D INPUT -p tcp --dport 53 -s $IP_VILYA -j ACCEPT
+
+# --- 3. Verifikasi Rule ---
+echo "Aturan DNS yang dihapus seharusnya tidak lagi muncul:"
+iptables -L INPUT -n | grep "dpt:53"
+
+# --- 4. Jalankan Service (jika perlu mereset status) ---
+echo "restart service named..."
+service named restart
+```
+
+Install `netcat` di Narya untuk uji akses. Lakukan hal yang sama di node lain:
+```bash
+#!/bin/bash
+
+IP_NARYA="192.236.1.195"
+
+# 1. Cek & Install Netcat jika belum ada
+if ! command -v nc &> /dev/null; then
+    echo "[INFO] Netcat tidak ditemukan. Memulai instalasi..."
+
+    # Pastikan bisa resolve DNS Google untuk download
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+    apt-get update
+    # Menginstall netcat (versi openbsd yang umum dipakai)
+    apt-get install netcat-openbsd -y
+else
+    echo "[INFO] Netcat sudah terinstal."
+fi
+
+echo "MULAI PENGUJIAN AKSES KE NARYA ($IP_NARYA)"
+echo "Target: Port 53 (DNS)"
+
+echo "[TEST UDP] nc -z -v -u $IP_NARYA 53"
+echo "[TEST TCP] nc -z -v $IP_NARYA 53"
+```
+
+![firewall-di-narya-2_3](/assets/firewall-di-narya-2_3.PNG)
+
+![virya-ke-narya-2_3](/assets/virya-ke-narya-2_3.PNG)
+
+![siapapun-ke-narya-gagal-2_3](/assets/siapapun-ke-narya-gagal-2_3.PNG)
+
+("UDP Succeeded" untuk node lain hanya berupa false positive)
+
 #### Misi 2-4:   
 Melakukan pengaturan agar IronHills hanya
 boleh diakses pada Akhir Pekan (Sabtu & Minggu)    
